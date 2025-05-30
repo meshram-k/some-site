@@ -69,22 +69,49 @@ document.querySelectorAll(".child").forEach((elem) => {
 });
 
 // MODAL OPEN / CLOSE
-const modal = document.getElementById("authModal");
+const authModal = document.getElementById("authModal");
+const accountPopUp = document.getElementById("accountPopUp");
 const openModal = document.querySelector('#icons a[href="/auth"]');
 const closeModal = document.querySelector('.modal .close');
+const accountPopUpCloseModal = document.querySelector('.accountPopUp .close');
+const accountContent = document.querySelector(".account-content p");
+const logoutButton = document.querySelector(".account-content button");
 
-if (openModal && closeModal && modal) {
+if (openModal && closeModal && authModal) {
   openModal.addEventListener("click", (e) => {
     e.preventDefault();
-    modal.style.display = "flex";
+    const email = localStorage.getItem("email");
+    // already login so open the account details pop up
+    if (email) {
+      accountContent.innerText = email;
+      logoutButton.addEventListener("click", () => {
+        localStorage.removeItem("email");
+        location.reload();
+      });
+      accountPopUp.style.display = "flex";
+      authModal.style.display = "none";
+      // need to login
+    } else {
+      accountPopUp.style.display = "none";
+      authModal.style.display = "flex";
+    }
   });
 
   closeModal.addEventListener("click", () => {
-    modal.style.display = "none";
+    authModal.style.display = "none";
+    accountPopUp.style.display = "none";
+  });
+
+  accountPopUpCloseModal.addEventListener("click", () => {
+    authModal.style.display = "none";
+    accountPopUp.style.display = "none"
   });
 
   window.addEventListener("click", (e) => {
-    if (e.target === modal) modal.style.display = "none";
+    if (e.target === authModal) {
+      authModal.style.display = "none";
+      accountPopUp.style.display = "none"
+    };
   });
 }
 
@@ -117,15 +144,42 @@ document.getElementById("loginForm")?.addEventListener("submit", async (e) => {
   const password = e.target[1].value;
 
   try {
-    const res = await fetch("/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+    const response = await fetch('http://127.0.0.1:9898/signin/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        id: email,
+        password: password
+      })
     });
-    const data = await res.json();
-    document.getElementById("authMessage").innerText = data.success
-      ? `Welcome back, ${data.username || "User"}!`
-      : data.message;
+
+    const statusCode = response.status;
+    const data = await response.json();
+
+    if (statusCode === 200) {
+      console.log(`LOGIN SUCCESS: ${data.message}`);
+      document.getElementById("authMessage").innerText = `Welcome back, ${data.user.name}!`;
+
+      // Hide modal
+      document.getElementById("authModal").style.display = "none";
+
+      // Store email
+      localStorage.setItem("email", email);
+
+    } else if (statusCode === 401) {
+      console.log(`INVALID CREDENTIALS: ${data.message}`);
+      document.getElementById("authMessage").innerText = data.message;
+    } else {
+      console.log(`UNKNOWN ERROR: ${data.message}`);
+      document.getElementById("authMessage").innerText = data.message;
+    }
+
+    // Clear inputs
+    e.target[0].value = "";
+    e.target[1].value = "";
+
   } catch (err) {
     document.getElementById("authMessage").innerText = "Something went wrong.";
   }
@@ -139,15 +193,49 @@ document.getElementById("signupForm")?.addEventListener("submit", async (e) => {
   const password = e.target[2].value;
 
   try {
-    const res = await fetch("/signup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, email, password }),
+    const response = await fetch('http://127.0.0.1:9898/signup/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        username: username,
+        id: email,
+        password: password
+      })
     });
-    const data = await res.json();
-    document.getElementById("authMessage").innerText = data.success
-      ? `Welcome, ${username}!`
-      : data.message;
+
+    const statusCode = response.status;
+    const data = await response.json();
+
+    // OK
+    if (statusCode == 201) {
+      // Hide Signup form, show Login form
+      document.getElementById("signupForm").classList.remove("active");
+      document.getElementById("loginForm").classList.add("active");
+
+      // Toggle button states
+      document.getElementById("showSignup").classList.remove("active");
+      document.getElementById("showLogin").classList.add("active");
+
+      console.log(`OK: ${data.message}`);
+      // Unauthorized
+    } else if (statusCode == 404) {
+      console.log(`UNAUTHORIZED: ${data.message}`);
+      // Account Already Exists
+    } else if (statusCode == 409) {
+      console.log(`ALREADY EXISTS: ${data.message}`);
+      // An Unknown Error
+    } else {
+      console.log(`UNKNOWN ERROR: ${data.message}`);
+    }
+
+    // Clear the values
+    e.target[0].value = "";
+    e.target[1].value = "";
+    e.target[2].value = "";
+
+    document.getElementById("authMessage").innerText = data.message;
   } catch (err) {
     document.getElementById("authMessage").innerText = "Something went wrong.";
   }
